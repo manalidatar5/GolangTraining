@@ -1,4 +1,4 @@
-package main
+package api
 
 import (
 	"encoding/json"
@@ -6,7 +6,6 @@ import (
 	"github.com/dgrijalva/jwt-go"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/gorilla/context"
-	"github.com/gorilla/mux"
 	"github.com/jmoiron/sqlx"
 	"net/http"
 	"strings"
@@ -39,19 +38,6 @@ type Exception struct {
 //var schema string = "CREATE TABLE `users` (	  	`id` integer AUTO_INCREMENT NOT NULL PRIMARY KEY,	`age` integer(10) NOT NULL	,  	`name` varchar(255) NOT NULL	,	`department` varchar(255) NOT NULL)"
 
 
-func main() {
-
-	r := mux.NewRouter()
-	api := r.PathPrefix("/api").Subrouter()
-	api.HandleFunc("/login", CreateTokenEndpoint).Methods("POST")
-	api.HandleFunc("/create", ValidateMiddleware(userCreate)).Methods("POST")
-	api.HandleFunc("/delete", ValidateMiddleware(userdelete)).Methods("DELETE")
-	api.HandleFunc("/update", ValidateMiddleware(userupdate)).Methods("PUT")
-	api.HandleFunc("/test", ValidateMiddleware(getuser)).Methods("GET")
-	fmt.Printf("Starting server at port 8091\n")
-	http.ListenAndServe("localhost:8091", r)
-
-}
 
 func ValidateMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -59,16 +45,12 @@ func ValidateMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		if authorizationHeader != "" {
 			bearerToken := strings.Split(authorizationHeader, " ")
 			if len(bearerToken) == 2 {
-				token, error := jwt.Parse(bearerToken[1], func(token *jwt.Token) (interface{}, error) {
+				token, _ := jwt.Parse(bearerToken[1], func(token *jwt.Token) (interface{}, error) {
 					if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-						return nil, fmt.Errorf("There was an error")
+
 					}
 					return []byte("secret"), nil
 				})
-				if error != nil {
-					json.NewEncoder(w).Encode(Exception{Message: error.Error()})
-					return
-				}
 				if token.Valid {
 					context.Set(req, "decoded", token.Claims)
 					next(w, req)
@@ -83,18 +65,12 @@ func ValidateMiddleware(next http.HandlerFunc) http.HandlerFunc {
 }
 
 //create token
-
-
-//create token
 func CreateTokenEndpoint(w http.ResponseWriter, req *http.Request) {
 	var user User
 	_ = json.NewDecoder(req.Body).Decode(&user)
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 	})
-	tokenString, error := token.SignedString([]byte("secret"))
-	if error != nil {
-		fmt.Println(error)
-	}
+	tokenString, _ := token.SignedString([]byte("secret"))
 	if user.Username == "Admin" && user.Password == "Admin123" {
 		json.NewEncoder(w).Encode(JwtToken{Token: tokenString})
 	}else {
@@ -103,21 +79,12 @@ func CreateTokenEndpoint(w http.ResponseWriter, req *http.Request) {
 }
 
 // create new user
-func userCreate(w http.ResponseWriter, r *http.Request) {
+func UserCreate(w http.ResponseWriter, r *http.Request) {
 	var p user
 	err := json.NewDecoder(r.Body).Decode(&p)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
 	conn, err := sqlx.Connect("mysql", "root:root@tcp(localhost:3306)/authpass")
-	if err != nil {
-		panic(err.Error())
-	}
+
 	res, err := conn.Exec("INSERT INTO users (age,name,department) VALUES(?,?,?)", p.Age, p.Name, p.Department)
-	if err != nil {
-		panic(err)
-	}
 	id, err := res.LastInsertId()
 	if err != nil {
 		panic(err)
@@ -132,22 +99,15 @@ func userCreate(w http.ResponseWriter, r *http.Request) {
 }
 
 //delete user {id}
-func userdelete(w http.ResponseWriter, r *http.Request) {
+func Userdelete(w http.ResponseWriter, r *http.Request) {
 
 	var p user
 	err := json.NewDecoder(r.Body).Decode(&p)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
 	}
 	conn, err := sqlx.Connect("mysql", "root:root@tcp(localhost:3306)/authpass")
-	if err != nil {
-		panic(err.Error())
-	}
+
 	_, err = conn.Exec("DELETE FROM users where id=?", p.ID)
-	if err != nil {
-		panic(err)
-	}
 
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"message": "Deleted",
@@ -157,22 +117,15 @@ func userdelete(w http.ResponseWriter, r *http.Request) {
 }
 
 //update user {id}{name}{age}{dept}
-func userupdate(w http.ResponseWriter, r *http.Request) {
+func Userupdate(w http.ResponseWriter, r *http.Request) {
 
 	var p user
 	err := json.NewDecoder(r.Body).Decode(&p)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
 	}
 	conn, err := sqlx.Connect("mysql", "root:root@tcp(localhost:3306)/authpass")
-	if err != nil {
-		panic(err.Error())
-	}
+
 	_, err = conn.Exec("update users set name=?, age=?, department=? where id=?", p.Name, p.Age, p.Department, p.ID)
-	if err != nil {
-		panic(err)
-	}
 
 	fmt.Printf("Updated user")
 
@@ -184,16 +137,12 @@ func userupdate(w http.ResponseWriter, r *http.Request) {
 }
 
 //get all users
-func getuser(w http.ResponseWriter, r *http.Request) {
+func Getuser(w http.ResponseWriter, r *http.Request) {
 
 	// var p user
 	conn, err := sqlx.Connect("mysql", "root:root@tcp(localhost:3306)/authpass")
-	if err != nil {
-		panic(err.Error())
-	}
 	rows, err := conn.Query("select * from users")
 	if err != nil {
-		panic(err)
 	}
 
 	var post = user{}
